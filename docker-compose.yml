@@ -39,7 +39,3 @@ services:
 
 volumes:
   db_data:
-    driver_opts:
-      type: none
-      o: bind
-      device: /home/jenkins/db_data
