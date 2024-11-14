@@ -1,10 +1,7 @@
-# docker-compose.yml para orquestrar ambos os containers
-# Salve este arquivo como docker-compose.yml na raiz do projeto
-
-# docker-compose.yml
-version: '3.9'
+version: '3.8'
 
 services:
+  # MariaDB para o banco de dados principal
   mariadb:
     build:
       context: .
@@ -19,7 +16,10 @@ services:
       MYSQL_DATABASE: school_db
       MYSQL_USER: flask_user
       MYSQL_PASSWORD: flask_password
+    networks:
+      - monitoring
 
+  # Aplicação Flask
   flask_app:
     build:
       context: .
@@ -36,7 +36,46 @@ services:
       FLASK_DB_USER: flask_user
       FLASK_DB_PASSWORD: flask_password
       FLASK_DB_NAME: school_db
+    networks:
+      - monitoring
+
+  # mysqld_exporter para coletar métricas do MariaDB
+  mysqld_exporter:
+    image: prom/mysqld-exporter:latest
+    environment:
+      DATA_SOURCE_NAME: flask_user:flask_password@(mariadb:3306)/school_db
+    networks:
+      - monitoring
+    depends_on:
+      - mariadb
+    ports:
+      - "9104:9104"  # Porta padrão do mysqld_exporter
+
+  # Prometheus para coletar métricas do mysqld_exporter e outros serviços
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - monitoring
+    ports:
+      - "9090:9090"
+
+  # Grafana para visualizar as métricas coletadas pelo Prometheus
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - monitoring
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+networks:
+  monitoring:
+    driver: bridge
 
 volumes:
   db_data:
-    driver: local
